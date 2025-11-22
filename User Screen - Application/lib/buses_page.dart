@@ -1,19 +1,41 @@
 import 'package:flutter/material.dart';
+import 'api_service.dart';
 
 enum BusStatus { active, maintenance, inactive }
 
 class Bus {
-  final String name;
-  final String license;
-  final String driver;
-  final BusStatus status;
+  final int busId;
+  final String number;
+  final int? routeId;
+  final String status;
 
-  const Bus({
-    required this.name,
-    required this.license,
-    required this.driver,
+  Bus({
+    required this.busId,
+    required this.number,
+    this.routeId,
     required this.status,
   });
+
+  BusStatus get busStatus {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return BusStatus.active;
+      case 'breakdown':
+      case 'in depot':
+        return BusStatus.maintenance;
+      default:
+        return BusStatus.inactive;
+    }
+  }
+
+  factory Bus.fromJson(Map<String, dynamic> json) {
+    return Bus(
+      busId: json['bus_id'] ?? 0,
+      number: json['number'] ?? '',
+      routeId: json['route_id'],
+      status: json['status'] ?? 'Active',
+    );
+  }
 }
 
 class BusesPage extends StatefulWidget {
@@ -24,34 +46,92 @@ class BusesPage extends StatefulWidget {
 }
 
 class _BusesPageState extends State<BusesPage> {
-  // Placeholder data
-  final List<Bus> _buses = const [
-    Bus(name: 'Alpha Bus-07', license: 'ABC-1234', driver: 'John Doe', status: BusStatus.active),
-    Bus(name: 'City Runner-02', license: 'DEF-5678', driver: 'Jane Smith', status: BusStatus.maintenance),
-    Bus(name: 'Metro Express-11', license: 'GHI-9012', driver: 'Unassigned', status: BusStatus.inactive),
-  ];
-
+  List<Bus> _buses = [];
+  bool _isLoading = true;
+  String? _error;
   final List<String> _filters = ['All', 'Active', 'Inactive', 'Maintenance'];
   int _selectedFilterIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBuses();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadBuses() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await ApiService.getBuses();
+      setState(() {
+        _buses = data.map((json) => Bus.fromJson(json)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load buses: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Bus> get _filteredBuses {
+    if (_selectedFilterIndex == 0) return _buses;
+    
+    final filter = _filters[_selectedFilterIndex].toLowerCase();
+    return _buses.where((bus) {
+      if (filter == 'active') return bus.status.toLowerCase() == 'active';
+      if (filter == 'inactive') return bus.status.toLowerCase() == 'in depot';
+      if (filter == 'maintenance') return bus.status.toLowerCase() == 'breakdown';
+      return true;
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF0D1F3C);
     const cardBackgroundColor = Color(0xFF1C2A44);
 
-    // This page is now just the content, not a full Scaffold with an AppBar.
-    // The main Scaffold is in dashboard_page.dart
     return Container(
       color: primaryColor,
       child: Column(
         children: [
           _buildSearchBar(cardBackgroundColor),
           _buildFilterChips(),
-          Expanded(child: _buildBusList(cardBackgroundColor)),
+          if (_isLoading)
+            const Expanded(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadBuses,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(child: _buildBusList(cardBackgroundColor)),
         ],
       ),
-      // The FloatingActionButton should also be moved to the main dashboard page
-      // to be managed along with the AppBar title.
     );
   }
 
@@ -59,8 +139,10 @@ class _BusesPageState extends State<BusesPage> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: TextField(
+        controller: _searchController,
+        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
-          hintText: 'Search by license plate or name...',
+          hintText: 'Search by bus number...',
           hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
           prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.5)),
           filled: true,
@@ -106,12 +188,29 @@ class _BusesPageState extends State<BusesPage> {
   }
 
   Widget _buildBusList(Color cardBackgroundColor) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: _buses.length,
-      itemBuilder: (context, index) {
-        return _BusListItem(bus: _buses[index], cardBackgroundColor: cardBackgroundColor);
-      },
+    final filtered = _filteredBuses.where((bus) {
+      final query = _searchController.text.toLowerCase();
+      return bus.number.toLowerCase().contains(query);
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text(
+          'No buses found',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadBuses,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: filtered.length,
+        itemBuilder: (context, index) {
+          return _BusListItem(bus: filtered[index], cardBackgroundColor: cardBackgroundColor);
+        },
+      ),
     );
   }
 }
@@ -136,25 +235,22 @@ class _BusListItem extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(bus.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                _BusStatusChip(status: bus.status),
+                Text(
+                  'Bus ${bus.number}',
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                _BusStatusChip(status: bus.busStatus),
               ],
             ),
             const SizedBox(height: 8),
-            Text('License: ${bus.license}', style: TextStyle(color: Colors.white.withOpacity(0.7))),
+            Text(
+              'Route ID: ${bus.routeId ?? 'N/A'}',
+              style: TextStyle(color: Colors.white.withOpacity(0.7)),
+            ),
             const Divider(color: Colors.white24, height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Driver: ${bus.driver}', style: TextStyle(color: Colors.white.withOpacity(0.9))),
-                Row(
-                  children: [
-                    _ActionButton(icon: Icons.edit, onPressed: () {}),
-                    const SizedBox(width: 8),
-                    _ActionButton(icon: Icons.delete_outline, onPressed: () {}),
-                  ],
-                ),
-              ],
+            Text(
+              'Status: ${bus.status}',
+              style: TextStyle(color: Colors.white.withOpacity(0.9)),
             ),
           ],
         ),
@@ -170,18 +266,24 @@ class _BusStatusChip extends StatelessWidget {
 
   Color _getStatusColor() {
     switch (status) {
-      case BusStatus.active: return Colors.green;
-      case BusStatus.maintenance: return Colors.orange;
-      case BusStatus.inactive: return Colors.grey;
+      case BusStatus.active:
+        return Colors.green;
+      case BusStatus.maintenance:
+        return Colors.orange;
+      case BusStatus.inactive:
+        return Colors.grey;
     }
   }
 
   String _getStatusText() {
-    final text = status.toString().split('.').last;
-    if (text.isEmpty) {
-      return '';
+    switch (status) {
+      case BusStatus.active:
+        return 'Active';
+      case BusStatus.maintenance:
+        return 'Maintenance';
+      case BusStatus.inactive:
+        return 'Inactive';
     }
-    return text[0].toUpperCase() + text.substring(1);
   }
 
   @override
@@ -196,30 +298,11 @@ class _BusStatusChip extends StatelessWidget {
         children: [
           Icon(Icons.circle, color: _getStatusColor(), size: 10),
           const SizedBox(width: 6),
-          Text(_getStatusText(), style: TextStyle(color: _getStatusColor(), fontWeight: FontWeight.bold)),
+          Text(
+            _getStatusText(),
+            style: TextStyle(color: _getStatusColor(), fontWeight: FontWeight.bold),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({required this.icon, required this.onPressed});
-
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: Colors.white.withOpacity(0.7), size: 20),
       ),
     );
   }

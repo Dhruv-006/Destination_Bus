@@ -2,220 +2,16 @@
 // MODERN SMART BUS ADMIN - ENHANCED JAVASCRIPT
 // ============================================
 
-// Real-time update flag
-let realTimeListenersActive = false;
-
 // ============================================
-// FIREBASE REAL-TIME LISTENERS
+// AUTO-REFRESH AFTER OPERATIONS
 // ============================================
 
-function setupRealTimeListeners() {
-  if (!window.firebaseDb || realTimeListenersActive || !window.firebaseReady) {
-    if (!window.firebaseReady) {
-      console.warn('Firebase not initialized. Real-time updates disabled. Please configure Firebase in dashboard.html');
-    }
-    return;
-  }
-  
-  try {
-    const db = window.firebaseDb;
-    
-    // Listen to buses collection
-    db.collection('buses').onSnapshot((snapshot) => {
-      const buses = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { bus_id: doc.id, id: doc.id, ...data };
-      });
-      updateBusesTable(buses);
-      updateDashboardSummary(); // Update summary cards
-    });
-    
-    // Listen to drivers collection
-    db.collection('drivers').onSnapshot((snapshot) => {
-      const drivers = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { driver_id: doc.id, id: doc.id, ...data };
-      });
-      updateDriversTable(drivers);
-      updateDashboardSummary(); // Update summary cards
-    });
-    
-    // Listen to routes collection
-    db.collection('routes').onSnapshot((snapshot) => {
-      const routes = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { route_id: doc.id, id: doc.id, ...data };
-      });
-      updateRoutesTable(routes);
-      updateDashboardSummary(); // Update summary cards
-    });
-    
-    // Listen to maintenance collection (ordered by reported_at desc)
-    db.collection('maintenance_logs')
-      .orderBy('reported_at', 'desc')
-      .onSnapshot((snapshot) => {
-        const maintenance = snapshot.docs.map(doc => {
-          const data = doc.data();
-          const reportedAt = data.reported_at;
-          return {
-            id: doc.id,
-            ...data,
-            reported_on: reportedAt ? 
-              (reportedAt.toDate ? reportedAt.toDate().toLocaleString() : 
-               (typeof reportedAt === 'string' ? reportedAt : new Date(reportedAt).toLocaleString())) :
-              'N/A'
-          };
-        });
-        updateMaintenanceTable(maintenance);
-        updateDashboardSummary(); // Update summary cards
-      });
-    
-    realTimeListenersActive = true;
-    console.log('✅ Real-time listeners activated');
-  } catch (error) {
-    console.warn('Real-time listeners not available:', error);
-    console.log('Make sure Firebase is properly configured in dashboard.html');
-  }
-}
-
-// Update dashboard summary cards in real-time
-function updateDashboardSummary() {
-  // This will be called when data changes to update the summary cards
-  // For now, we'll reload the summary data from the server
-  // In a full implementation, you could calculate this from the real-time data
-  if (document.getElementById('overview')?.classList.contains('active')) {
-    // Refresh summary by fetching from server or recalculating from current data
-    fetch('/dashboard')
-      .then(response => response.text())
-      .then(html => {
-        // Parse and update summary cards
-        // This is a simplified approach - in production, you'd want an API endpoint
-      })
-      .catch(err => console.log('Summary update skipped:', err));
-  }
-}
-
-// Update functions for real-time data
-function updateBusesTable(buses) {
-  const tbody = document.querySelector('#buses tbody');
-  if (!tbody) return;
-  
-  tbody.innerHTML = buses.map(bus => `
-    <tr data-bus-id="${bus.id || bus.bus_id}">
-      <td>${bus.id || bus.bus_id}</td>
-      <td>${bus.number || ''}</td>
-      <td>${bus.route_id || 'N/A'}</td>
-      <td><span class="status-badge ${(bus.status || '').toLowerCase().replace(' ', '-')}">${bus.status || 'Active'}</span></td>
-      <td>
-        <button class="btn-small btn-edit" onclick="editBus('${bus.id || bus.bus_id}', '${bus.number || ''}', ${bus.route_id || 'null'}, '${bus.status || 'Active'}')">✏️ Edit</button>
-        <button class="btn-small btn-delete" onclick="deleteBus('${bus.id || bus.bus_id}', '${bus.number || ''}')">🗑️ Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-function updateDriversTable(drivers) {
-  const tbody = document.getElementById('driversTable');
-  if (!tbody) return;
-  
-  tbody.innerHTML = drivers.map(driver => `
-    <tr data-driver-id="${driver.id || driver.driver_id}">
-      <td>${driver.id || driver.driver_id}</td>
-      <td>${driver.name || ''}</td>
-      <td>${driver.phone || ''}</td>
-      <td class="attendance"><span class="status-badge ${(driver.attendance || 'Absent').toLowerCase()}">${driver.attendance || 'Absent'}</span></td>
-      <td>
-        <button class="btn-small mark-present">✓ Present</button>
-        <button class="btn-small mark-absent">✗ Absent</button>
-        <button class="btn-small btn-edit" onclick="editDriver('${driver.id || driver.driver_id}', '${driver.name || ''}', '${driver.phone || ''}')">✏️ Edit</button>
-        <button class="btn-small btn-delete" onclick="deleteDriver('${driver.id || driver.driver_id}', '${driver.name || ''}')">🗑️ Delete</button>
-      </td>
-    </tr>
-  `).join('');
-  
-  // Re-attach event listeners
-  attachDriverAttendanceListeners();
-}
-
-function updateRoutesTable(routes) {
-  const tbody = document.querySelector('#routes tbody');
-  if (!tbody) return;
-  
-  tbody.innerHTML = routes.map(route => `
-    <tr data-route-id="${route.id || route.route_id}">
-      <td>${route.id || route.route_id}</td>
-      <td>${route.name || ''}</td>
-      <td>${route.start_stop || ''}</td>
-      <td>${route.end_stop || ''}</td>
-      <td>${route.first_bus || 'N/A'}</td>
-      <td>${route.last_bus || 'N/A'}</td>
-      <td>${route.frequency_min || 'N/A'}</td>
-      <td>
-        <button class="btn-small btn-edit" onclick="editRoute('${route.id || route.route_id}', '${route.name || ''}', '${route.start_stop || ''}', '${route.end_stop || ''}', '${route.first_bus || ''}', '${route.last_bus || ''}', ${route.frequency_min || 'null'})">✏️ Edit</button>
-        <button class="btn-small btn-delete" onclick="deleteRoute('${route.id || route.route_id}', '${route.name || ''}')">🗑️ Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-function updateMaintenanceTable(maintenance) {
-  const tbody = document.querySelector('#maintenance tbody');
-  if (!tbody) return;
-  
-  tbody.innerHTML = maintenance.map(m => `
-    <tr data-maintenance-id="${m.id}">
-      <td>${m.id}</td>
-      <td>${m.bus_id || ''}</td>
-      <td>${m.issue || ''}</td>
-      <td><span class="status-badge ${(m.status || 'Pending').toLowerCase().replace(' ', '-')}">${m.status || 'Pending'}</span></td>
-      <td>${m.reported_on || (m.reported_at ? new Date(m.reported_at.seconds * 1000).toLocaleString() : 'N/A')}</td>
-      <td>
-        <button class="btn-small btn-edit" onclick="editMaintenance('${m.id}', ${m.bus_id || 'null'}, '${(m.issue || '').replace(/'/g, "\\'")}', '${m.status || 'Pending'}')">✏️ Edit</button>
-        <button class="btn-small btn-delete" onclick="deleteMaintenance('${m.id}')">🗑️ Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-// Helper to re-attach driver attendance listeners
-function attachDriverAttendanceListeners() {
-  const driversTable = document.getElementById("driversTable");
-  if (driversTable) {
-    driversTable.addEventListener("click", async (e) => {
-      const btn = e.target;
-      if (!btn.classList.contains("mark-present") && !btn.classList.contains("mark-absent"))
-        return;
-
-      const row = btn.closest("tr");
-      const driverId = row.dataset.driverId;
-      const status = btn.classList.contains("mark-present") ? "Present" : "Absent";
-      const driverName = row.querySelector('td:nth-child(2)').textContent;
-
-      try {
-        setButtonLoading(btn, true);
-        await postJSON(`/api/drivers/${driverId}/attendance`, { status });
-        
-        const attendanceCell = row.querySelector(".attendance");
-        attendanceCell.innerHTML = `<span class="status-badge ${status.toLowerCase()}">${status}</span>`;
-        attendanceCell.style.animation = 'none';
-        setTimeout(() => {
-          attendanceCell.style.animation = 'fadeIn 0.5s ease-in';
-        }, 10);
-        
-        row.style.background = status === 'Present' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
-        setTimeout(() => {
-          row.style.background = '';
-        }, 2000);
-        
-        showSuccess(`Attendance marked as ${status} for ${driverName}`);
-      } catch (error) {
-        showError("Failed to update attendance. Please try again.");
-        console.error(error);
-      } finally {
-        setButtonLoading(btn, false);
-      }
-    });
-  }
+// Helper function to refresh page data after operations
+function refreshPageData() {
+  // Reload the page after a short delay to show updated data
+  setTimeout(() => {
+    window.location.reload();
+  }, 1500);
 }
 
 // Tab switch with animation
@@ -345,9 +141,9 @@ if (addBusForm) {
       
       await postJSON("/api/buses", payload);
       
-      showSuccess("Bus added successfully! Real-time update in progress...");
+      showSuccess("Bus added successfully! Refreshing page...");
       addBusForm.reset();
-      // Real-time update will handle the refresh automatically
+      refreshPageData();
       
       // Animate the form
       addBusForm.style.animation = 'none';
@@ -380,9 +176,9 @@ if (addDriverForm) {
       
       await postJSON("/api/drivers", payload);
       
-      showSuccess("Driver added successfully! Real-time update in progress...");
+      showSuccess("Driver added successfully! Refreshing page...");
       addDriverForm.reset();
-      // Real-time update will handle the refresh automatically
+      refreshPageData();
     } catch (error) {
       showError("Failed to add driver. Please try again.");
       console.error(error);
@@ -452,9 +248,9 @@ if (addRouteForm) {
       
       await postJSON("/api/routes", payload);
       
-      showSuccess("Route added successfully! Real-time update in progress...");
+      showSuccess("Route added successfully! Refreshing page...");
       addRouteForm.reset();
-      // Real-time update will handle the refresh automatically
+      refreshPageData();
     } catch (error) {
       showError("Failed to add route. Please try again.");
       console.error(error);
@@ -481,9 +277,9 @@ if (addMaintenanceForm) {
       
       await postJSON("/api/maintenance", payload);
       
-      showSuccess("Maintenance record added successfully! Real-time update in progress...");
+      showSuccess("Maintenance record added successfully! Refreshing page...");
       addMaintenanceForm.reset();
-      // Real-time update will handle the refresh automatically
+      refreshPageData();
     } catch (error) {
       showError("Failed to add maintenance record. Please try again.");
       console.error(error);
@@ -627,6 +423,8 @@ async function deleteJSON(url) {
 
 // Edit Bus
 function editBus(busId, number, routeId, status) {
+  // Convert routeId to string for display, handle null/undefined
+  const routeIdStr = (routeId === null || routeId === 'null' || routeId === undefined) ? '' : routeId;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
@@ -638,9 +436,9 @@ function editBus(busId, number, routeId, status) {
       <div class="modal-body">
         <form id="editBusForm">
           <label>Bus Number</label>
-          <input type="text" name="number" value="${number}" required>
+          <input type="text" name="number" value="${number || ''}" required>
           <label>Route ID</label>
-          <input type="number" name="route_id" value="${routeId || ''}" placeholder="Route ID">
+          <input type="number" name="route_id" value="${routeIdStr}" placeholder="Route ID">
           <label>Status</label>
           <select name="status">
             <option value="Active" ${status === 'Active' ? 'selected' : ''}>Active</option>
@@ -666,9 +464,9 @@ async function saveBusEdit(busId) {
   
   try {
     await putJSON(`/api/buses/${busId}`, payload);
-    showSuccess("Bus updated successfully! Real-time update in progress...");
+    showSuccess("Bus updated successfully! Refreshing page...");
     document.querySelector('.modal-overlay.active')?.remove();
-    // Real-time update will handle the refresh automatically
+    refreshPageData();
   } catch (error) {
     showError("Failed to update bus.");
   }
@@ -680,8 +478,8 @@ function deleteBus(busId, number) {
   
   deleteJSON(`/api/buses/${busId}`)
     .then(() => {
-      showSuccess("Bus deleted successfully! Real-time update in progress...");
-      // Real-time update will handle the refresh automatically
+      showSuccess("Bus deleted successfully! Refreshing page...");
+      refreshPageData();
     })
     .catch(() => showError("Failed to delete bus."));
 }
@@ -720,9 +518,9 @@ async function saveDriverEdit(driverId) {
   
   try {
     await putJSON(`/api/drivers/${driverId}`, payload);
-    showSuccess("Driver updated successfully! Real-time update in progress...");
+    showSuccess("Driver updated successfully! Refreshing page...");
     document.querySelector('.modal-overlay.active')?.remove();
-    // Real-time update will handle the refresh automatically
+    refreshPageData();
   } catch (error) {
     showError("Failed to update driver.");
   }
@@ -734,8 +532,8 @@ function deleteDriver(driverId, name) {
   
   deleteJSON(`/api/drivers/${driverId}`)
     .then(() => {
-      showSuccess("Driver deleted successfully! Real-time update in progress...");
-      // Real-time update will handle the refresh automatically
+      showSuccess("Driver deleted successfully! Refreshing page...");
+      refreshPageData();
     })
     .catch(() => showError("Failed to delete driver."));
 }
@@ -782,9 +580,9 @@ async function saveRouteEdit(routeId) {
   
   try {
     await putJSON(`/api/routes/${routeId}`, payload);
-    showSuccess("Route updated successfully! Real-time update in progress...");
+    showSuccess("Route updated successfully! Refreshing page...");
     document.querySelector('.modal-overlay.active')?.remove();
-    // Real-time update will handle the refresh automatically
+    refreshPageData();
   } catch (error) {
     showError("Failed to update route.");
   }
@@ -796,8 +594,8 @@ function deleteRoute(routeId, name) {
   
   deleteJSON(`/api/routes/${routeId}`)
     .then(() => {
-      showSuccess("Route deleted successfully! Real-time update in progress...");
-      // Real-time update will handle the refresh automatically
+      showSuccess("Route deleted successfully! Refreshing page...");
+      refreshPageData();
     })
     .catch(() => showError("Failed to delete route."));
 }
@@ -842,9 +640,9 @@ async function saveMaintenanceEdit(maintenanceId) {
   
   try {
     await putJSON(`/api/maintenance/${maintenanceId}`, payload);
-    showSuccess("Maintenance record updated successfully! Real-time update in progress...");
+    showSuccess("Maintenance record updated successfully! Refreshing page...");
     document.querySelector('.modal-overlay.active')?.remove();
-    // Real-time update will handle the refresh automatically
+    refreshPageData();
   } catch (error) {
     showError("Failed to update maintenance record.");
   }
@@ -856,8 +654,8 @@ function deleteMaintenance(maintenanceId) {
   
   deleteJSON(`/api/maintenance/${maintenanceId}`)
     .then(() => {
-      showSuccess("Maintenance record deleted successfully! Real-time update in progress...");
-      // Real-time update will handle the refresh automatically
+      showSuccess("Maintenance record deleted successfully! Refreshing page...");
+      refreshPageData();
     })
     .catch(() => showError("Failed to delete maintenance record."));
 }
@@ -1044,20 +842,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Setup real-time listeners after a short delay to ensure Firebase is loaded
-  // Check every 500ms if Firebase is ready
-  const checkFirebase = setInterval(() => {
-    if (window.firebaseReady && window.firebaseDb) {
-      clearInterval(checkFirebase);
-      setupRealTimeListeners();
-    }
-  }, 500);
-  
-  // Stop checking after 10 seconds
-  setTimeout(() => {
-    clearInterval(checkFirebase);
-    if (!realTimeListenersActive) {
-      console.warn('⚠️  Firebase real-time listeners not activated. Check Firebase configuration.');
-    }
-  }, 10000);
 });

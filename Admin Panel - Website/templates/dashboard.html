@@ -9,29 +9,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script>
-      // ⚠️ IMPORTANT: Replace these values with your Firebase project configuration
-      // Get these from Firebase Console → Project Settings → Your apps → Web app
-      const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
-      };
-      
-      // Initialize Firebase
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
-      
-      // Make Firebase available globally
-      window.firebaseDb = db;
-      window.firebaseReady = true;
-    </script>
   </head>
   <body>
     <header class="topbar">
@@ -149,8 +126,8 @@
                 <td>{{ b.route_id or 'N/A' }}</td>
                 <td><span class="status-badge {{ b.status.lower().replace(' ', '-') }}">{{ b.status }}</span></td>
                 <td>
-                  <button class="btn-small btn-edit" onclick="editBus({{ b.bus_id }}, '{{ b.number }}', {{ b.route_id or 'null' }}, '{{ b.status }}')">✏️ Edit</button>
-                  <button class="btn-small btn-delete" onclick="deleteBus({{ b.bus_id }}, '{{ b.number }}')">🗑️ Delete</button>
+                  <button class="btn-small btn-edit" onclick="editBus({{ b.bus_id }}, '{{ b.number|replace("'", "\\'") }}', {% if b.route_id %}{{ b.route_id }}{% else %}null{% endif %}, '{{ b.status }}')">Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteBus({{ b.bus_id }}, '{{ b.number|replace("'", "\\'") }}')">Delete</button>
                 </td>
               </tr>
               {% endfor %}
@@ -193,8 +170,8 @@
                 <td>
                   <button class="btn-small mark-present">✓ Present</button>
                   <button class="btn-small mark-absent">✗ Absent</button>
-                  <button class="btn-small btn-edit" onclick="editDriver({{ d.driver_id }}, '{{ d.name }}', '{{ d.phone }}')">✏️ Edit</button>
-                  <button class="btn-small btn-delete" onclick="deleteDriver({{ d.driver_id }}, '{{ d.name }}')">🗑️ Delete</button>
+                  <button class="btn-small btn-edit" onclick="editDriver({{ d.driver_id }}, '{{ d.name|replace("'", "\\'") }}', '{{ d.phone }}')">Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteDriver({{ d.driver_id }}, '{{ d.name|replace("'", "\\'") }}')">Delete</button>
                 </td>
               </tr>
               {% endfor %}
@@ -236,8 +213,8 @@
                 <td>{{ r.last_bus or 'N/A' }}</td>
                 <td>{{ r.frequency_min or 'N/A' }}</td>
                 <td>
-                  <button class="btn-small btn-edit" onclick="editRoute({{ r.route_id }}, '{{ r.name }}', '{{ r.start_stop }}', '{{ r.end_stop }}', '{{ r.first_bus or '' }}', '{{ r.last_bus or '' }}', {{ r.frequency_min or 'null' }})">✏️ Edit</button>
-                  <button class="btn-small btn-delete" onclick="deleteRoute({{ r.route_id }}, '{{ r.name }}')">🗑️ Delete</button>
+                  <button class="btn-small btn-edit" onclick="editRoute({{ r.route_id }}, '{{ r.name|replace("'", "\\'") }}', '{{ r.start_stop|replace("'", "\\'") }}', '{{ r.end_stop|replace("'", "\\'") }}', '{{ r.first_bus or '' }}', '{{ r.last_bus or '' }}', {% if r.frequency_min %}{{ r.frequency_min }}{% else %}null{% endif %})">Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteRoute({{ r.route_id }}, '{{ r.name|replace("'", "\\'") }}')">Delete</button>
                 </td>
               </tr>
               {% endfor %}
@@ -312,8 +289,8 @@
                 <td><span class="status-badge {{ m.status.lower().replace(' ', '-') }}">{{ m.status }}</span></td>
                 <td>{{ m.reported_on or (m.reported_at.strftime('%Y-%m-%d %H:%M') if m.reported_at else 'N/A') }}</td>
                 <td>
-                  <button class="btn-small btn-edit" onclick="editMaintenance({{ m.id }}, {{ m.bus_id }}, '{{ m.issue }}', '{{ m.status }}')">✏️ Edit</button>
-                  <button class="btn-small btn-delete" onclick="deleteMaintenance({{ m.id }})">🗑️ Delete</button>
+                  <button class="btn-small btn-edit" onclick="editMaintenance({{ m.id }}, {{ m.bus_id }}, '{{ m.issue|replace("'", "\\'") }}', '{{ m.status }}')">Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteMaintenance({{ m.id }})">Delete</button>
                 </td>
               </tr>
               {% endfor %}

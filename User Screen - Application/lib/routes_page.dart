@@ -1,71 +1,118 @@
 import 'package:flutter/material.dart';
+import 'api_service.dart';
 
 enum RouteStatus { active, delayed, inactive }
 
 class RouteInfo {
+  final int routeId;
   final String name;
-  final RouteStatus status;
-  final String path;
-  final String schedule;
-  final List<String> stops;
-  final String assignedBus;
-  final String assignedDriver;
+  final String startStop;
+  final String endStop;
+  final String? firstBus;
+  final String? lastBus;
+  final int? frequencyMin;
 
-  const RouteInfo({
+  RouteInfo({
+    required this.routeId,
     required this.name,
-    required this.status,
-    required this.path,
-    required this.schedule,
-    required this.stops,
-    required this.assignedBus,
-    required this.assignedDriver,
+    required this.startStop,
+    required this.endStop,
+    this.firstBus,
+    this.lastBus,
+    this.frequencyMin,
   });
+
+  String get path => '$startStop → $endStop';
+  String get schedule {
+    if (firstBus != null && lastBus != null) {
+      return 'Daily: $firstBus - $lastBus';
+    }
+    return 'Schedule not set';
+  }
+
+  RouteStatus get status => RouteStatus.active; // Default to active
+
+  factory RouteInfo.fromJson(Map<String, dynamic> json) {
+    return RouteInfo(
+      routeId: json['route_id'] ?? 0,
+      name: json['name'] ?? '',
+      startStop: json['start_stop'] ?? '',
+      endStop: json['end_stop'] ?? '',
+      firstBus: json['first_bus'],
+      lastBus: json['last_bus'],
+      frequencyMin: json['frequency_min'],
+    );
+  }
 }
 
-class RoutesPage extends StatelessWidget {
+class RoutesPage extends StatefulWidget {
   const RoutesPage({super.key});
 
-  final List<RouteInfo> _routes = const [
-    RouteInfo(
-      name: 'Route 5A',
-      status: RouteStatus.active,
-      path: 'Downtown Hub → Northside Mall',
-      schedule: 'Daily: 6:00 AM - 11:00 PM',
-      stops: ['Central Station', 'Library', 'Parkside Ave', 'Northside Mall'],
-      assignedBus: 'Bus #102',
-      assignedDriver: 'John Doe',
-    ),
-    RouteInfo(
-      name: 'Route 12C',
-      status: RouteStatus.delayed,
-      path: 'City Center → Airport Terminal',
-      schedule: 'Daily: 5:30 AM - 1:00 AM',
-      stops: ['City Hall', 'Convention Center', 'Terminal A', 'Terminal B'],
-      assignedBus: 'Bus #205',
-      assignedDriver: 'Jane Smith',
-    ),
-    RouteInfo(
-      name: 'Route 3B',
-      status: RouteStatus.inactive,
-      path: 'West End → University Campus',
-      schedule: 'Weekdays: 7:00 AM - 8:00 PM',
-      stops: ['West End Station', 'Arts Building', 'Science Lab', 'Campus Hub'],
-      assignedBus: 'Bus #301',
-      assignedDriver: 'Unassigned',
-    ),
-  ];
+  @override
+  State<RoutesPage> createState() => _RoutesPageState();
+}
+
+class _RoutesPageState extends State<RoutesPage> {
+  List<RouteInfo> _routes = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await ApiService.getRoutes();
+      setState(() {
+        _routes = data.map((json) => RouteInfo.fromJson(json)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load routes: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF0D1F3C),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _routes.length,
-        itemBuilder: (context, index) {
-          return _RouteListItem(route: _routes[index]);
-        },
-      ),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadRoutes,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadRoutes,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: _routes.length,
+                    itemBuilder: (context, index) {
+                      return _RouteListItem(route: _routes[index]);
+                    },
+                  ),
+                ),
     );
   }
 }
@@ -85,7 +132,6 @@ class _RouteListItemState extends State<_RouteListItem> {
   @override
   void initState() {
     super.initState();
-    // By default, expand the first active route
     if (widget.route.status == RouteStatus.active) {
       _isExpanded = true;
     }
@@ -157,18 +203,12 @@ class _RouteListItemState extends State<_RouteListItem> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Stops:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          const Text('Route Details:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(
-            widget.route.stops.join(', '),
-            style: TextStyle(color: Colors.white.withOpacity(0.8)),
-          ),
-          const Divider(color: Colors.white24, height: 32),
-          const Text('Assignments:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          _AssignmentRow(icon: Icons.directions_bus, text: widget.route.assignedBus),
-          const SizedBox(height: 8),
-          _AssignmentRow(icon: Icons.person, text: widget.route.assignedDriver),
+          _DetailRow(label: 'Start Stop', value: widget.route.startStop),
+          _DetailRow(label: 'End Stop', value: widget.route.endStop),
+          if (widget.route.frequencyMin != null)
+            _DetailRow(label: 'Frequency', value: '${widget.route.frequencyMin} minutes'),
         ],
       ),
     );
@@ -182,9 +222,12 @@ class _StatusChip extends StatelessWidget {
 
   Color _getStatusColor() {
     switch (status) {
-      case RouteStatus.active: return Colors.green;
-      case RouteStatus.delayed: return Colors.orange;
-      case RouteStatus.inactive: return Colors.grey;
+      case RouteStatus.active:
+        return Colors.green;
+      case RouteStatus.delayed:
+        return Colors.orange;
+      case RouteStatus.inactive:
+        return Colors.grey;
     }
   }
 
@@ -208,20 +251,34 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _AssignmentRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
 
-  const _AssignmentRow({required this.icon, required this.text});
+  const _DetailRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.white.withOpacity(0.7), size: 20),
-        const SizedBox(width: 12),
-        Text(text, style: TextStyle(color: Colors.white.withOpacity(0.9))),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
