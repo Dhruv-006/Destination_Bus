@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bhavnagar Bus – Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script>
+      // ⚠️ IMPORTANT: Replace these values with your Firebase project configuration
+      // Get these from Firebase Console → Project Settings → Your apps → Web app
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+      };
+      
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      
+      // Make Firebase available globally
+      window.firebaseDb = db;
+      window.firebaseReady = true;
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo-container">
+        <img src="{{ url_for('static', filename='1000053770.png') }}" alt="Logo" class="logo">
+        <h1>Smart Bus Admin Dashboard</h1>
+      </div>
+      <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
+    </header>
+
+    <main class="layout">
+      <nav class="sidebar">
+        <ul>
+          <li data-tab="overview" class="active">Overview</li>
+          <li data-tab="buses">Buses</li>
+          <li data-tab="drivers">Drivers</li>
+          <li data-tab="routes">Routes</li>
+          <li data-tab="live">Live Tracking</li>
+          <li data-tab="maintenance">Maintenance</li>
+          <li data-tab="ai">AI Insights</li>
+        </ul>
+      </nav>
+
+      <section class="content">
+        <!-- OVERVIEW -->
+        <div class="tab active" id="overview">
+          <h2>📊 City Operations Dashboard</h2>
+          
+          <div class="cards">
+            <div class="card">
+              <span class="card-icon">🚌</span>
+              <h3>Total Buses</h3>
+              <p>{{ summary.total_buses }}</p>
+              <div class="card-change">Fleet Size</div>
+            </div>
+            <div class="card">
+              <span class="card-icon">✅</span>
+              <h3>Active Buses</h3>
+              <p>{{ summary.active_buses }}</p>
+              <div class="card-change">{{ "%.0f"|format((summary.active_buses / summary.total_buses * 100) if summary.total_buses > 0 else 0) }}% Operational</div>
+            </div>
+            <div class="card">
+              <span class="card-icon">👨‍✈️</span>
+              <h3>Total Drivers</h3>
+              <p>{{ summary.total_drivers }}</p>
+              <div class="card-change">Staff Count</div>
+            </div>
+            <div class="card">
+              <span class="card-icon">✓</span>
+              <h3>Present Drivers</h3>
+              <p>{{ summary.present_drivers }}</p>
+              <div class="card-change">{{ "%.0f"|format((summary.present_drivers / summary.total_drivers * 100) if summary.total_drivers > 0 else 0) }}% Attendance</div>
+            </div>
+            <div class="card">
+              <span class="card-icon">🗺️</span>
+              <h3>Total Routes</h3>
+              <p>{{ summary.total_routes }}</p>
+              <div class="card-change">Active Routes</div>
+            </div>
+            <div class="card">
+              <span class="card-icon">🔧</span>
+              <h3>Maintenance</h3>
+              <p>{{ summary.total_maintenance }}</p>
+              <div class="card-change">{{ summary.pending_maintenance }} Pending</div>
+            </div>
+          </div>
+
+          <!-- Charts Section -->
+          <div class="charts-container">
+            <div class="chart-card">
+              <h3>Bus Status Distribution</h3>
+              <div class="chart-wrapper">
+                <canvas id="busStatusChart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3>Driver Attendance</h3>
+              <div class="chart-wrapper">
+                <canvas id="driverAttendanceChart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3>Maintenance Status</h3>
+              <div class="chart-wrapper">
+                <canvas id="maintenanceChart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3>Operations Overview</h3>
+              <div class="chart-wrapper">
+                <canvas id="operationsChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BUSES -->
+        <div class="tab" id="buses">
+          <h2>Bus Management</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Bus ID</th>
+                <th>Number</th>
+                <th>Route ID</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in buses %}
+              <tr data-bus-id="{{ b.bus_id }}">
+                <td>{{ b.bus_id }}</td>
+                <td>{{ b.number }}</td>
+                <td>{{ b.route_id or 'N/A' }}</td>
+                <td><span class="status-badge {{ b.status.lower().replace(' ', '-') }}">{{ b.status }}</span></td>
+                <td>
+                  <button class="btn-small btn-edit" onclick="editBus({{ b.bus_id }}, '{{ b.number }}', {{ b.route_id or 'null' }}, '{{ b.status }}')">✏️ Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteBus({{ b.bus_id }}, '{{ b.number }}')">🗑️ Delete</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h3>Add New Bus</h3>
+          <form id="addBusForm">
+            <input type="text" name="number" placeholder="Bus Number" required />
+            <input type="text" name="route_id" placeholder="Route ID" required />
+            <select name="status">
+              <option value="Active">Active</option>
+              <option value="In Depot">In Depot</option>
+              <option value="Breakdown">Breakdown</option>
+            </select>
+            <button type="submit">Add Bus</button>
+          </form>
+        </div>
+
+        <!-- DRIVERS -->
+        <div class="tab" id="drivers">
+          <h2>Driver Management & Attendance</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Attendance</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="driversTable">
+              {% for d in drivers %}
+              <tr data-driver-id="{{ d.driver_id }}">
+                <td>{{ d.driver_id }}</td>
+                <td>{{ d.name }}</td>
+                <td>{{ d.phone }}</td>
+                <td class="attendance"><span class="status-badge {{ d.attendance.lower() }}">{{ d.attendance }}</span></td>
+                <td>
+                  <button class="btn-small mark-present">✓ Present</button>
+                  <button class="btn-small mark-absent">✗ Absent</button>
+                  <button class="btn-small btn-edit" onclick="editDriver({{ d.driver_id }}, '{{ d.name }}', '{{ d.phone }}')">✏️ Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteDriver({{ d.driver_id }}, '{{ d.name }}')">🗑️ Delete</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h3>Add New Driver</h3>
+          <form id="addDriverForm">
+            <input type="text" name="name" placeholder="Name" required />
+            <input type="text" name="phone" placeholder="Phone" required />
+            <button type="submit">Add Driver</button>
+          </form>
+        </div>
+
+        <!-- ROUTES -->
+        <div class="tab" id="routes">
+          <h2>Route & Schedule Management</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Route ID</th>
+                <th>Name</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>First Bus</th>
+                <th>Last Bus</th>
+                <th>Frequency (min)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in routes %}
+              <tr data-route-id="{{ r.route_id }}">
+                <td>{{ r.route_id }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.start_stop }}</td>
+                <td>{{ r.end_stop }}</td>
+                <td>{{ r.first_bus or 'N/A' }}</td>
+                <td>{{ r.last_bus or 'N/A' }}</td>
+                <td>{{ r.frequency_min or 'N/A' }}</td>
+                <td>
+                  <button class="btn-small btn-edit" onclick="editRoute({{ r.route_id }}, '{{ r.name }}', '{{ r.start_stop }}', '{{ r.end_stop }}', '{{ r.first_bus or '' }}', '{{ r.last_bus or '' }}', {{ r.frequency_min or 'null' }})">✏️ Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteRoute({{ r.route_id }}, '{{ r.name }}')">🗑️ Delete</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h3>Add New Route</h3>
+          <form id="addRouteForm">
+            <input type="text" name="name" placeholder="Route Name" required />
+            <input type="text" name="start_stop" placeholder="Start Stop" required />
+            <input type="text" name="end_stop" placeholder="End Stop" required />
+            <input type="time" name="first_bus" value="06:00" />
+            <input type="time" name="last_bus" value="22:00" />
+            <input type="number" name="frequency_min" placeholder="Frequency (min)" value="15" />
+            <button type="submit">Add Route</button>
+          </form>
+        </div>
+
+        <!-- LIVE TRACKING -->
+        <div class="tab" id="live">
+          <h2>Live Bus Tracking (Last Known Location)</h2>
+          <table id="liveTable">
+            <thead>
+              <tr>
+                <th>Bus ID</th>
+                <th>Lat</th>
+                <th>Lng</th>
+                <th>Speed (km/h)</th>
+                <th>Occupancy</th>
+                <th>Last Update</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for bus_id, info in live_locations.items() %}
+              <tr>
+                <td>{{ bus_id }}</td>
+                <td>{{ info.lat }}</td>
+                <td>{{ info.lng }}</td>
+                <td>{{ info.speed }}</td>
+                <td>{{ info.occupancy }}</td>
+                <td>{{ info.last_update }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="hint">
+            Driver app will hit <code>/api/location-update</code> to push real-time
+            coordinates. (Demo ke liye abhi static hai.)
+          </p>
+        </div>
+
+        <!-- MAINTENANCE -->
+        <div class="tab" id="maintenance">
+          <h2>Bus Maintenance & Health</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Bus ID</th>
+                <th>Issue</th>
+                <th>Status</th>
+                <th>Reported On</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in maintenance %}
+              <tr data-maintenance-id="{{ m.id }}">
+                <td>{{ m.id }}</td>
+                <td>{{ m.bus_id }}</td>
+                <td>{{ m.issue }}</td>
+                <td><span class="status-badge {{ m.status.lower().replace(' ', '-') }}">{{ m.status }}</span></td>
+                <td>{{ m.reported_on or (m.reported_at.strftime('%Y-%m-%d %H:%M') if m.reported_at else 'N/A') }}</td>
+                <td>
+                  <button class="btn-small btn-edit" onclick="editMaintenance({{ m.id }}, {{ m.bus_id }}, '{{ m.issue }}', '{{ m.status }}')">✏️ Edit</button>
+                  <button class="btn-small btn-delete" onclick="deleteMaintenance({{ m.id }})">🗑️ Delete</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h3>Add Maintenance Record</h3>
+          <form id="addMaintenanceForm">
+            <input type="text" name="bus_id" placeholder="Bus ID" required />
+            <input type="text" name="issue" placeholder="Issue" required />
+            <select name="status">
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+            <button type="submit">Add Record</button>
+          </form>
+        </div>
+
+        <!-- AI INSIGHTS -->
+        <div class="tab" id="ai">
+          <h2>AI Insights – ETA & Crowd Prediction</h2>
+          <p style="color: var(--text-secondary); margin-bottom: 24px;">
+            Select a bus to get AI-based prediction of ETA and crowd levels.
+          </p>
+          <form style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 24px;">
+            <div style="flex: 1;">
+              <label for="aiBusId" style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Bus ID</label>
+              <select id="aiBusId" style="width: 100%; padding: 12px 16px; border-radius: 10px; border: 2px solid var(--border-color); font-size: 14px; background: white; color: var(--text-primary);">
+                <option value="">Select a bus...</option>
+                {% if buses %}
+                  {% for b in buses %}
+                  <option value="{{ b.bus_id }}">{{ b.bus_id }} ({{ b.number }})</option>
+                  {% endfor %}
+                {% else %}
+                  <option value="" disabled>No buses available</option>
+                {% endif %}
+              </select>
+            </div>
+            <button type="button" id="aiPredictBtn" style="padding: 12px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%); color: white; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: var(--shadow-md); white-space: nowrap;">Get Prediction</button>
+          </form>
+
+          <pre id="aiResult" class="ai-result" style="min-height: 100px;"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Pass summary data to JavaScript
+      window.dashboardSummary = {
+        total_buses: {{ summary.total_buses }},
+        active_buses: {{ summary.active_buses }},
+        inactive_buses: {{ summary.inactive_buses }},
+        breakdown_buses: {{ summary.breakdown_buses }},
+        total_drivers: {{ summary.total_drivers }},
+        present_drivers: {{ summary.present_drivers }},
+        absent_drivers: {{ summary.absent_drivers }},
+        total_routes: {{ summary.total_routes }},
+        total_maintenance: {{ summary.total_maintenance }},
+        pending_maintenance: {{ summary.pending_maintenance }},
+        resolved_maintenance: {{ summary.resolved_maintenance }}
+      };
+    </script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+  </body>
+</html>

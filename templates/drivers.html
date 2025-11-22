@@ -1,0 +1,204 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Bhavnagar - Driver Management</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark navbar-expand-lg">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="dashboard.html">
+        Smart Bhavnagar Admin
+      </a>
+      <span class="navbar-text text-success">
+        Driver Management
+      </span>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 bg-white border-end min-vh-100 p-3">
+        <h6 class="text-uppercase text-muted">Menu</h6>
+        <ul class="nav flex-column">
+          <li class="nav-item"><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+          <li class="nav-item"><a href="buses.html" class="nav-link">Buses</a></li>
+          <li class="nav-item"><a href="routes.html" class="nav-link">Routes & Schedules</a></li>
+          <li class="nav-item"><a href="drivers.html" class="nav-link active fw-bold">Drivers</a></li>
+          <li class="nav-item"><a href="maintenance.html" class="nav-link">Maintenance</a></li>
+          <li class="nav-item"><a href="tickets.html" class="nav-link">Tickets & Passes</a></li>
+          <li class="nav-item"><a href="ai_insights.html" class="nav-link">AI Insights</a></li>
+        </ul>
+      </div>
+
+      <!-- Content -->
+      <div class="col-md-10 p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="mb-0">Drivers</h3>
+          <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addDriverModal">
+            + Add Driver
+          </button>
+        </div>
+
+        <!-- Tabs: Drivers / Attendance -->
+        <ul class="nav nav-tabs mb-3" id="driverTabs">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#driversList">Driver List</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#attendanceTab">Attendance</button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <!-- Driver List -->
+          <div class="tab-pane fade show active" id="driversList">
+            <div class="card">
+              <div class="card-body p-0">
+                <table class="table table-striped table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Employee ID</th>
+                      <th>Assigned Bus</th>
+                      <th>Mobile</th>
+                      <th>Status</th>
+                      <th>Today</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>1</td>
+                      <td>Ramesh Patel</td>
+                      <td>DRV-101</td>
+                      <td>GJ-04-AB-1234</td>
+                      <td>98765 43210</td>
+                      <td><span class="badge bg-success">Active</span></td>
+                      <td><span class="badge bg-success">Present</span></td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary">View</button>
+                        <button class="btn btn-sm btn-outline-secondary">Edit</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>2</td>
+                      <td>Mahesh Chauhan</td>
+                      <td>DRV-202</td>
+                      <td>GJ-04-CD-5678</td>
+                      <td>98765 00000</td>
+                      <td><span class="badge bg-warning text-dark">On Leave</span></td>
+                      <td><span class="badge bg-danger">Absent</span></td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary">View</button>
+                        <button class="btn btn-sm btn-outline-secondary">Edit</button>
+                      </td>
+                    </tr>
+                    <!-- dynamic -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attendance -->
+          <div class="tab-pane fade" id="attendanceTab">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Attendance (Example)</span>
+                <input type="date" class="form-control form-control-sm" style="width:auto;">
+              </div>
+              <div class="card-body p-0">
+                <table class="table table-bordered mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Driver</th>
+                      <th>Shift</th>
+                      <th>Check-in</th>
+                      <th>Check-out</th>
+                      <th>Hours</th>
+                      <th>Attendance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Ramesh Patel</td>
+                      <td>Morning</td>
+                      <td>06:05</td>
+                      <td>14:15</td>
+                      <td>8h 10m</td>
+                      <td><span class="badge bg-success">Present</span></td>
+                    </tr>
+                    <tr>
+                      <td>Mahesh Chauhan</td>
+                      <td>Evening</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td><span class="badge bg-danger">Absent</span></td>
+                    </tr>
+                    <!-- dynamic -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div> <!-- tab-content -->
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Driver Modal -->
+  <div class="modal fade" id="addDriverModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Driver</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Employee ID</label>
+            <input type="text" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Mobile</label>
+            <input type="tel" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Assigned Bus</label>
+            <select class="form-select">
+              <option>GJ-04-AB-1234</option>
+              <option>GJ-04-CD-5678</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Address</label>
+            <textarea class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" type="submit">Save Driver</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

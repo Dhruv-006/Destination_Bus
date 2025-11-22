@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Smart Bus Admin{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="topbar">
+    <div class="logo-container">
+      <img src="{{ url_for('static', filename='1000053770.png') }}" alt="Logo" class="logo">
+      <h1>Smart Bus Admin Dashboard</h1>
+    </div>
+    <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
+  </nav>
+
+  <div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert" id="flash-message">
+            {{ msg }}
+            <button type="button" class="modal-close" onclick="this.parentElement.remove()" style="float: right; margin-top: -4px;">&times;</button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+    // Auto-dismiss flash messages after 5 seconds
+    setTimeout(() => {
+      const flashMsg = document.getElementById('flash-message');
+      if (flashMsg) {
+        flashMsg.style.animation = 'fadeOut 0.5s ease-out';
+        setTimeout(() => flashMsg.remove(), 500);
+      }
+    }, 5000);
+  </script>
+</body>
+</html>
